@@ -1,0 +1,69 @@
+// ... (keep your existing DOM elements and toggle functions)
+
+// Message Rendering
+function appendBotMessage(text, options = null) {
+    disableInput();
+    
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'flex justify-start';
+    typingDiv.id = 'typing-indicator';
+    typingDiv.innerHTML = `
+        <div class="bg-white border border-gray-200 text-gray-500 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm typing-indicator">
+            <span>•</span><span>•</span><span>•</span>
+        </div>
+    `; // Corrected: using backticks
+    chatMessages.appendChild(typingDiv);
+    scrollToBottom();
+
+    setTimeout(() => {
+        const indicator = document.getElementById('typing-indicator');
+        if (indicator) indicator.remove();
+
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'flex flex-col items-start space-y-2';
+        
+        // Corrected: used backticks for the HTML string below
+        let html = `<div class="bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm max-w-[85%]">${text}</div>`;
+        
+        if (options) {
+            html += `<div class="flex flex-wrap gap-2 mt-2">`;
+            options.forEach(opt => {
+                const escapedLabel = opt.label.replace(/'/g, "\\'");
+                // Corrected: used backticks for the button string below
+                html += `<button onclick="handleOptionClick('${opt.value}', '${escapedLabel}')" class="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-full text-sm font-medium transition-colors">${opt.label}</button>`;
+            });
+            html += `</div>`;
+        }
+
+        msgDiv.innerHTML = html;
+        chatMessages.appendChild(msgDiv);
+        scrollToBottom();
+
+        if (!options) enableInput();
+    }, 800);
+}
+
+function appendUserMessage(text) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'flex justify-end';
+    // Corrected: used backticks for the div below
+    msgDiv.innerHTML = `<div class="bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm max-w-[85%] break-words">${text}</div>`;
+    chatMessages.appendChild(msgDiv);
+    scrollToBottom();
+    userInput.value = '';
+}
+
+// ... (keep Flow Logic and handleOptionClick)
+
+function processInput(input, isOption) {
+    switch(currentStep) {
+        // ... (keep other cases)
+        case 'ask_name':
+            leadData.name = input;
+            currentStep = 'ask_phone';
+            // Corrected: used backticks for the template literal below
+            appendBotMessage(`Nice to meet you, ${leadData.name}! What is the best phone number to reach you at?`);
+            break;
+        // ... (keep remaining logic)
+    }
+}
