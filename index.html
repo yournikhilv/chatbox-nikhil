@@ -1,69 +1,208 @@
-// ... (keep your existing DOM elements and toggle functions)
-
-// Message Rendering
-function appendBotMessage(text, options = null) {
-    disableInput();
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WizKlub Chatbot Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .chat-open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+        .chat-closed { transform: translateY(20px); opacity: 0; pointer-events: none; }
+        .typing-indicator span { animation: blink 1.4s infinite both; }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
+        #chat-messages::-webkit-scrollbar { width: 6px; }
+        #chat-messages::-webkit-scrollbar-track { background: transparent; }
+        #chat-messages::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen font-sans flex items-center justify-center relative overflow-hidden">
     
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'flex justify-start';
-    typingDiv.id = 'typing-indicator';
-    typingDiv.innerHTML = `
-        <div class="bg-white border border-gray-200 text-gray-500 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm typing-indicator">
-            <span>•</span><span>•</span><span>•</span>
+    <div class="text-center p-8 max-w-2xl opacity-50">
+        <h1 class="text-4xl font-bold text-blue-900 mb-4">Welcome to WizKlub</h1>
+        <p class="text-lg text-gray-600">Building future-ready skills through STEM and cognitive development.</p>
+    </div>
+
+    <button id="chat-toggle" class="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full w-16 h-16 flex items-center justify-center shadow-2xl hover:bg-blue-700 transition-colors z-50">
+        <i class="fas fa-comment-dots text-2xl" id="chat-icon"></i>
+    </button>
+
+    <div id="chat-window" class="fixed bottom-28 right-6 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl flex flex-col transition-all duration-300 chat-closed z-50 border border-gray-200" style="height: 550px; max-height: 80vh;">
+        <div class="bg-blue-600 p-4 text-white rounded-t-2xl flex justify-between items-center shadow-md">
+            <div class="flex items-center space-x-2">
+                <div class="bg-white p-1.5 rounded-full">
+                    <img src="https://cdn-icons-png.flaticon.com/512/4712/4712035.png" alt="Bot" class="w-6 h-6">
+                </div>
+                <div>
+                    <h3 class="font-bold text-sm">WizKlub Assistant</h3>
+                    <p class="text-xs text-blue-200">Online</p>
+                </div>
+            </div>
+            <button id="close-chat" class="text-white hover:text-gray-200">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
-    `; // Corrected: using backticks
-    chatMessages.appendChild(typingDiv);
-    scrollToBottom();
 
-    setTimeout(() => {
-        const indicator = document.getElementById('typing-indicator');
-        if (indicator) indicator.remove();
+        <div id="chat-messages" class="flex-1 p-4 overflow-y-auto bg-gray-50 flex flex-col space-y-4"></div>
 
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'flex flex-col items-start space-y-2';
-        
-        // Corrected: used backticks for the HTML string below
-        let html = `<div class="bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm max-w-[85%]">${text}</div>`;
-        
-        if (options) {
-            html += `<div class="flex flex-wrap gap-2 mt-2">`;
-            options.forEach(opt => {
-                const escapedLabel = opt.label.replace(/'/g, "\\'");
-                // Corrected: used backticks for the button string below
-                html += `<button onclick="handleOptionClick('${opt.value}', '${escapedLabel}')" class="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-full text-sm font-medium transition-colors">${opt.label}</button>`;
-            });
-            html += `</div>`;
+        <div class="p-4 bg-white border-t border-gray-100 rounded-b-2xl">
+            <div class="flex items-center space-x-2">
+                <input type="text" id="user-input" placeholder="Type your answer here..." class="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:border-blue-500 text-sm disabled:bg-gray-100">
+                <button id="send-btn" class="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-blue-700 disabled:bg-gray-400">
+                    <i class="fas fa-paper-plane text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatToggle = document.getElementById('chat-toggle');
+        const chatWindow = document.getElementById('chat-window');
+        const closeChat = document.getElementById('close-chat');
+        const chatIcon = document.getElementById('chat-icon');
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+
+        let isChatOpen = false;
+        let currentStep = 'init';
+        let leadData = { type: '', name: '', phone: '', email: '', extra: '' };
+
+        function toggleChat() {
+            isChatOpen = !isChatOpen;
+            if (isChatOpen) {
+                chatWindow.classList.remove('chat-closed');
+                chatWindow.classList.add('chat-open');
+                chatIcon.classList.replace('fa-comment-dots', 'fa-chevron-down');
+                if (currentStep === 'init') startConversation();
+            } else {
+                chatWindow.classList.add('chat-closed');
+                chatWindow.classList.remove('chat-open');
+                chatIcon.classList.replace('fa-chevron-down', 'fa-comment-dots');
+            }
         }
 
-        msgDiv.innerHTML = html;
-        chatMessages.appendChild(msgDiv);
-        scrollToBottom();
+        chatToggle.addEventListener('click', toggleChat);
+        closeChat.addEventListener('click', toggleChat);
 
-        if (!options) enableInput();
-    }, 800);
-}
+        function scrollToBottom() { chatMessages.scrollTop = chatMessages.scrollHeight; }
+        function disableInput() { userInput.disabled = true; sendBtn.disabled = true; }
+        function enableInput() { userInput.disabled = false; sendBtn.disabled = false; userInput.focus(); }
 
-function appendUserMessage(text) {
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'flex justify-end';
-    // Corrected: used backticks for the div below
-    msgDiv.innerHTML = `<div class="bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm max-w-[85%] break-words">${text}</div>`;
-    chatMessages.appendChild(msgDiv);
-    scrollToBottom();
-    userInput.value = '';
-}
+        function appendBotMessage(text, options = null) {
+            disableInput();
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'flex justify-start';
+            typingDiv.id = 'typing-indicator';
+            typingDiv.innerHTML = `<div class="bg-white border border-gray-200 text-gray-500 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm typing-indicator"><span>•</span><span>•</span><span>•</span></div>`;
+            chatMessages.appendChild(typingDiv);
+            scrollToBottom();
 
-// ... (keep Flow Logic and handleOptionClick)
+            setTimeout(() => {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) indicator.remove();
 
-function processInput(input, isOption) {
-    switch(currentStep) {
-        // ... (keep other cases)
-        case 'ask_name':
-            leadData.name = input;
-            currentStep = 'ask_phone';
-            // Corrected: used backticks for the template literal below
-            appendBotMessage(`Nice to meet you, ${leadData.name}! What is the best phone number to reach you at?`);
-            break;
-        // ... (keep remaining logic)
-    }
-}
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'flex flex-col items-start space-y-2';
+                
+                let html = `<div class="bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 text-sm shadow-sm max-w-[85%]">${text}</div>`;
+                
+                if (options) {
+                    html += `<div class="flex flex-wrap gap-2 mt-2">`;
+                    options.forEach(opt => {
+                        html += `<button onclick="handleOptionClick('${opt.value}', '${opt.label}')" class="bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-full text-sm font-medium transition-colors">${opt.label}</button>`;
+                    });
+                    html += `</div>`;
+                }
+
+                msgDiv.innerHTML = html;
+                chatMessages.appendChild(msgDiv);
+                scrollToBottom();
+                if (!options) enableInput();
+            }, 800);
+        }
+
+        function appendUserMessage(text) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'flex justify-end';
+            msgDiv.innerHTML = `<div class="bg-blue-600 text-white rounded-2xl rounded-tr-none px-4 py-3 text-sm shadow-sm max-w-[85%] break-words">${text}</div>`;
+            chatMessages.appendChild(msgDiv);
+            scrollToBottom();
+            userInput.value = '';
+        }
+
+        function startConversation() {
+            currentStep = 'ask_type';
+            appendBotMessage("Hi there! 👋 Welcome to WizKlub. What brings you here today?", [
+                { label: "I'm a Parent", value: "parent" },
+                { label: "I represent a School", value: "school" }
+            ]);
+        }
+
+        window.handleOptionClick = function(value, label) {
+            const buttons = chatMessages.querySelectorAll('button');
+            buttons.forEach(btn => btn.remove());
+            appendUserMessage(label);
+            processInput(value, true);
+        };
+
+        function handleSend() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            appendUserMessage(text);
+            processInput(text, false);
+        }
+
+        sendBtn.addEventListener('click', handleSend);
+        userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+
+        function processInput(input, isOption) {
+            switch(currentStep) {
+                case 'ask_type':
+                    if (input === 'parent') {
+                        leadData.type = 'Parent';
+                        currentStep = 'parent_grade';
+                        appendBotMessage("Wonderful! What grade is your child currently in?");
+                    } else {
+                        leadData.type = 'School';
+                        currentStep = 'school_name';
+                        appendBotMessage("Excellent! What is the name of your institution?");
+                    }
+                    break;
+                case 'parent_grade':
+                case 'school_name':
+                    leadData.extra = input;
+                    currentStep = 'ask_name';
+                    appendBotMessage("Got it. And what is your name?");
+                    break;
+                case 'ask_name':
+                    leadData.name = input;
+                    currentStep = 'ask_phone';
+                    appendBotMessage(`Nice to meet you, ${leadData.name}! What is your phone number?`);
+                    break;
+                case 'ask_phone':
+                    if(input.length < 7) {
+                        appendBotMessage("Please provide a valid phone number.");
+                        return;
+                    }
+                    leadData.phone = input;
+                    currentStep = 'ask_email';
+                    appendBotMessage("Perfect. Lastly, what is your email address?");
+                    break;
+                case 'ask_email':
+                    leadData.email = input;
+                    currentStep = 'completed';
+                    finishConversation();
+                    break;
+            }
+        }
+
+        function finishConversation() {
+            disableInput();
+            appendBotMessage("Thank you! 🚀 Your details have been recorded. We will reach out to you shortly.");
+        }
+    </script>
+</body>
+</html>
